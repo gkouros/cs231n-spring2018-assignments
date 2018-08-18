@@ -96,9 +96,6 @@ def softmax_loss_vectorized(W, X, y, reg):
     loss /= num_train
     loss += 0.5 * reg * np.sum(W * W)
 
-    #  calculate gradients
-    softmax = np.exp(all_class_scores) / all_class_scores_exp_sum
-
     # fully-vectorized gradient computation
     softmax = np.exp(all_class_scores+logc) / all_class_scores_exp_sum
     true_class_sub = np.zeros(softmax.shape)
