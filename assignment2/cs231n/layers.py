@@ -757,6 +757,7 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
     # Your implementation should be very short; ours is less than five lines. #
     ###########################################################################
     N, C, H, W = x.shape
+    #  transpose x to (N, W, H, C)
     x = x.transpose(0, 3, 2, 1).reshape(N*W*H, C)
     out, cache = batchnorm_forward(x, gamma, beta, bn_param)
     out = out.reshape(N, W, H, C).transpose(0, 3, 2, 1)
@@ -837,12 +838,11 @@ def spatial_groupnorm_forward(x, gamma, beta, G, gn_param):
     #  x_hat = x_hat.reshape(N, C, H, W)
     #  out = gamma * x_hat + beta
     #  cache = {'x_hat': x_hat, 'mean': mean, 'var': var, 'gamma': gamma,
-             #  'beta': beta, 'eps': eps, 'G': G}
-    #  out_bak = out
-    
+    #  'beta': beta, 'eps': eps, 'G': G}
+
     # implementation using pre-existing layernorm implemenation
     N, C, H, W = x.shape
-    x = x.reshape(N*G, -1)
+    x = x.reshape(N*G, (C//G)*H*W)
     out, cache = layernorm_forward(x, 1, 0, gn_param)
     out = out.reshape(N, C, H, W) * gamma + beta
     cache['G'] = G
@@ -875,21 +875,24 @@ def spatial_groupnorm_backward(dout, cache):
     ###########################################################################
     N, C, H, W = dout.shape
     G = cache['G']
-    dx_hat = dout * cache['gamma']
-    dout = dout.reshape(N, G, C//G, H, W)
+    var = cache['var']
+    eps = cache['eps']
     x_hat = cache['x_hat'].reshape(dout.shape)
+    dx_hat = dout * cache['gamma']
 
-    dgamma = np.sum(dout * x_hat, axis=(0, 3, 4)).reshape(1,C,1,1)
-    dbeta = np.sum(dout, axis=(0, 3, 4)).reshape(1,C,1,1)
+    dgamma = np.sum(dout * x_hat, axis=(0, 2, 3), keepdims=True)
+    dbeta = np.sum(dout, axis=(0, 2, 3), keepdims=True)
 
-    #  D = np.prod(dout.shape[1:])
-    #  var = cache['var']
-    #  eps = cache['eps']
-    #  dx = 1/np.sqrt(var+eps)/D * (D*dx_hat - np.sum(dx_hat, axis=(0, 3, 4), keepdims=True)
-      #  - x_hat*np.sum(dx_hat*x_hat, axis=(0, 3, 4), keepdims=True))
-    #  dx = dx.reshape(N, C, H, W)
+    D = (C//G) * H * W
+    x_hat = x_hat.reshape(N*G, D)
+    dx_hat = dx_hat.reshape(N*G, D)
 
-    dx = np.zeros((N,C,H,W))
+    istd = 1 / np.sqrt(var+eps)
+    dx = istd/D * (D*dx_hat - np.sum(dx_hat, axis=1, keepdims=True)
+    - x_hat*np.sum(dx_hat*x_hat, axis=1, keepdims=True))
+    dx = dx.reshape(N, C, H, W)
+
+    #  dx = np.zeros((N, C, H, W))
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
