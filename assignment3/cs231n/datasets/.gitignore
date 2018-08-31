@@ -1,0 +1,3 @@
+*.npz
+squeezenet*
+coco_captioning/
